@@ -30,39 +30,55 @@ class Mvvm{
  *
  */
 function compile(el, vm){
-    let root = document.querySelector(el);
+    // 此处编译完之后，顺便赋值进去$em。
+    // let root = document.querySelector(el);
+    vm.$el = document.querySelector(el);
     let fragment = document.createDocumentFragment();
     let child;
-    while(child = root.firstChild){
+    while(child = vm.$el.firstChild){
         // fragment.push(child);
         // 注意此处不是使用fragment.push。而是fragment.appendChild();
         fragment.appendChild(child)
     }
-    function update(frag){
-        let reg = /\{\{(.*?)\}\}/g;
-        // 注意此处要将frag先转为数组，因为它只是一个类数组对象。
-        Array.from(frag).forEach(node => {
+    function replace(frag){
+        // 注意此处要将frag.childNodes先转为数组，因为它只是一个类数组对象。
+        Array.from(frag.childNodes).forEach(node => {
             // textContent 这个属性，记忆一下。记忆一下所有的DOM操作。
+            let reg = /\{\{(.*?)\}\}/g;
             let txt = node.textContent;
             if(node.nodeType === 3 && reg.test(txt)){
                 // 注意reg.test调用以后，如果有括号匹配，则会分别出现在RegExp类的$1, $2..属性中。
                 // 比如在这段代码中，如果匹配成功，RegExp.$1 则为 {{ }} 当中的内容
                 let exp = RegExp.$1;
+                console.log(exp);
                 let val = expressionToValue(exp);
-                node.textContent = val;
+
+                // 注意此处并不是将textContent替换成表达式的值。
+                // 而是将{{}}部分替换成表达式的值。
+                // node.textContent = val;
+                // 另外 replace()方法不会改变原字符串
+                node.textContent = txt.replace(reg, val).trim();
+            }
+
+            // 严重注意。此处应该递归往下对所有的节点都进行replace操作。
+            if(node.childNodes && node.childNodes.length){
+                replace(node);
             }
         });
     }
     function expressionToValue(exp){
-        let expArr = exp.slice('.');
+        
+        // split('.'), instead of slice('.')
+        let expArr = exp.split('.');
         let val = vm;
         expArr.forEach(key=>{
             val = val[key];
         })
         return val;
     }
-    update(fragment);
 
+    replace(fragment);
+    vm.$el.appendChild(fragment);
 }
 
 function observe(data){
@@ -84,7 +100,9 @@ class Observe{
             Object.defineProperty(data, key, {
                 configurable: true,
                 get(){
-                    return data[key];
+                    // warning!!! 不要使用data[key]，不然会无限循环调用。
+                    // return data[key];
+                    return val;
                 },
                 set(newVal){
                     // 这里需要注意两点。
