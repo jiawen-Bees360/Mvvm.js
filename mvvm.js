@@ -90,6 +90,7 @@ Dep.prototype = {
     },
 
     notify(){
+        console.log('current watching', this.subs)
         this.subs.forEach(sub => sub.update());
     }
 }
@@ -106,7 +107,6 @@ function Watcher(vm, exp ,fn){
         val = val[key];
     });
     Dep.target = null;
-    this.fn = fn;
 }
 Watcher.prototype.update =function(){
     let arr = this.exp.split('.');

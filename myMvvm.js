@@ -50,7 +50,6 @@ function compile(el, vm){
                 // 注意reg.test调用以后，如果有括号匹配，则会分别出现在RegExp类的$1, $2..属性中。
                 // 比如在这段代码中，如果匹配成功，RegExp.$1 则为 {{ }} 当中的内容
                 let exp = RegExp.$1;
-                console.log(exp);
                 let val = expressionToValue(exp);
 
                 // 注意此处并不是将textContent替换成表达式的值。
@@ -58,6 +57,11 @@ function compile(el, vm){
                 // node.textContent = val;
                 // 另外 replace()方法不会改变原字符串
                 node.textContent = txt.replace(reg, val).trim();
+
+                new Watcher(vm, exp, newVal=>{
+                    console.log('hello')
+                    node.textContent = txt.replace(reg, newVal).trim();
+                })
             }
 
             // 严重注意。此处应该递归往下对所有的节点都进行replace操作。
@@ -92,8 +96,10 @@ function observe(data){
 
 class Observe{
     constructor(data){
-
         for(let key in data){
+            // 注意，dep应该定义在此处而不是for循环以外，
+            // 因为我们希望notify尽可能少的数据进行变化
+            let dep = new Dep();
             let val = data[key];
             // 注意：此处要递归往下observe
             observe(val);
@@ -102,17 +108,67 @@ class Observe{
                 get(){
                     // warning!!! 不要使用data[key]，不然会无限循环调用。
                     // return data[key];
+                    Dep.target && dep.addSub(Dep.target);
                     return val;
                 },
                 set(newVal){
                     // 这里需要注意两点。
                     // 1. 值相等时无需赋值。
                     // 2. 设置为新值后，需要将新值也observe
-                    if(newVal = val) return;
-                    data[key] = newVal;
+                    if(newVal == val) return;
+                    val = newVal;
                     observe(newVal);
+                    dep.notify();
                 }
             })
         }
+    }
+}
+
+class Watcher{
+    
+    /**
+     *Creates an instance of Watcher.
+     * @param {*} vm mvvm对象，用于update的时候获取值。
+     * @param {*} exp 该watcher watch的表达式。
+     * @param {*} fn 该watcher被通知的时候，执行的方法。
+     * @memberof Watcher
+     */
+    constructor(vm, exp, fn){
+        this.vm = vm;
+        this.fn = fn;
+        this.exp = exp;
+
+        Dep.target = this;
+        // 注意此处，是用一种非常tricky的方式，将watcher加入到observe那里的dep实例当中。
+        // val在该构造函数中其实没有用上，其主要目的是触发 mvvm 对应data的get方法，
+        // get方法中，将Dep.target加入dep.subs数组中，而Dep.target则在这里设置成了this。
+        // 非常tricky。
+        let expArr = exp.split('.');
+        let val = this.vm;
+        expArr.forEach(key => {
+            val = val[key];
+        })
+        Dep.target = null;
+    }
+    update(){
+        let val = this.vm;
+        let expArr = this.exp.split('.');
+        expArr.forEach(key=>{
+            val = val[key]
+        })
+        this.fn(val);
+    }
+}
+
+class Dep{
+    constructor(){
+        this.subs = [];
+    }
+    addSub(watcher){
+        this.subs.push(watcher);
+    }
+    notify(){
+        this.subs.forEach(sub => sub.update());
     }
 }
