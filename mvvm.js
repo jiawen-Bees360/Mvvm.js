@@ -71,6 +71,37 @@ function compile(el, vm){
                 new Watcher(vm, RegExp.$1, newVal=>{
                     node.textContent = txt.replace(reg, newVal).trim();
                 })
+            } else if (node.nodeType === 1 ){ //元素节点
+                let nodeAttr = node.attributes;
+                Array.from(nodeAttr).forEach(attr=>{
+                    let name = attr.name;
+                    let exp = attr.value;
+                    let expArr = exp.split('.');
+                    if(name.includes('v-')){
+                        let val = vm;
+                        expArr.forEach(key=>{
+                            val = val[key];
+                        })
+                        node.value = val;
+                    }
+
+                    new Watcher(vm, exp, (newVal)=>{
+                        node.value = newVal;
+                    })
+
+                    node.addEventListener('input', e=>{
+                        let newVal = e.target.value;
+                        let val = vm;
+                        const len = expArr.length;
+                        const lastKey = expArr[len -1];
+                        for(let i = 0; i < len - 1; i++){
+                            const key = expArr[i];
+                            val = val[key];
+                        }
+                        val[lastKey] = newVal;
+                    })
+                })
+
             }
             if(node.childNodes && node.childNodes.length){
                 replace(node);
@@ -90,7 +121,6 @@ Dep.prototype = {
     },
 
     notify(){
-        console.log('current watching', this.subs)
         this.subs.forEach(sub => sub.update());
     }
 }
